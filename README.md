@@ -15,7 +15,7 @@ no GitHub.
 **Aba "Gerar planilha"**
 - 41 colunas prontas + colunas personalizadas que você criar
 - Modelos próprios: selecione as colunas, clique em "Criar modelo", dê um nome e ele fica no topo para usar com um clique
-- Botão **Limpar modelo** deixa a planilha com zero colunas (o app abre assim)
+- Botão **Limpar seleção** deixa a planilha com zero colunas (o app abre assim)
 - Prévia das 8 primeiras linhas antes de baixar
 - Download em **Excel (.xlsx)**, **CSV** ou **JSON**
 - Histórico das 8 últimas gerações, para baixar de novo sem configurar outra vez
