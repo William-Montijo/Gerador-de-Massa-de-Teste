@@ -90,6 +90,8 @@ p{margin-bottom:0;}
  .st-key-limpar_selecao button{min-height:32px; padding:4px 12px;}
 .st-key-limpar_selecao button p{font-size:13px; font-weight:500;}
 .aviso{background:#FFF8E6;border:1px solid #F5DFA8;border-radius:10px;padding:12px 14px;margin:4px 0 12px;font-size:.92rem;line-height:1.5;color:#3A2E12}
+/* Versão que mora na lateral da tela: mais apertada para caber na coluna estreita. */
+.aviso.lad{font-size:.8rem;padding:11px 12px;line-height:1.45;margin:0 0 12px}
 /* Separa os modelos criados dos botões de ação. */
 .seprot{border-top:1px solid var(--border); margin:16px 0 10px; padding-top:12px; font-size:12px; font-weight:700;
   letter-spacing:.05em; text-transform:uppercase; color:var(--mutedfg);}
@@ -667,6 +669,15 @@ def _card(chave: str, titulo: str, sub: str | None = None):
     return c
 
 
+# O mesmo aviso, na lateral das abas de geração.
+AVISO_LATERAL = (
+    '<div class="aviso lad"><b>Importante:</b> nada fica salvo no servidor. Se você recarregar ou fechar a página, '
+    'seus modelos e o histórico somem. Antes de sair, abra a aba <b>Histórico</b> e baixe o seu arquivo de histórico '
+    'portátil. Na próxima vez, abra esse arquivo na aba <b>Histórico</b> e tudo volta como estava. '
+    '<b>Só você vê o seu arquivo.</b></div>'
+)
+
+
 # ---------------------------------------------------------------------------
 # Topo
 # ---------------------------------------------------------------------------
@@ -808,6 +819,7 @@ if ABA == "Gerar planilha":
                              on_click=_excluir_hist, args=(h["token"],))
 
     with dir_:
+        st.markdown(AVISO_LATERAL, unsafe_allow_html=True)
         with _card("ordem", "Ordem na planilha", "Use as setas para reorganizar."):
             if not ORDEM:
                 st.markdown('<div class="vazio">Nenhuma coluna selecionada.</div>', unsafe_allow_html=True)
@@ -899,7 +911,7 @@ if ABA == "Gerar planilha":
 # ===========================================================================
 
 elif ABA == "Gerar dado único":
-    _, meio, _ = st.columns([1, 2.4, 1])
+    _, meio, lad = st.columns([1, 2.4, 1])
     with meio, _card("unico", "Gerar dado único", "Gere um valor avulso e copie para onde precisar."):
         a, b, c = st.columns([1.3, 1.3, 1], vertical_alignment="bottom")
         tipo = a.selectbox("Tipo de dado", geradores.TIPOS_DADO_UNICO, key="u_tipo")
@@ -945,14 +957,17 @@ elif ABA == "Gerar dado único":
         if st.button("Gerar novo", key="u_gerar", type="primary", icon=":material/refresh:", width="stretch"):
             st.session_state["u_novo"] = True
             st.rerun()
+    with lad:
+        st.markdown(AVISO_LATERAL, unsafe_allow_html=True)
 
 elif ABA == "Histórico":
     _, meio, _ = st.columns([0.6, 2, 0.6])
     with meio:
         with _card("arquivo", "Meu histórico", "Guarde tudo o que você fez num arquivo e abra de novo quando voltar."):
             st.markdown('<div class="aviso"><b>Importante:</b> nada fica salvo no servidor. Se você recarregar ou fechar a '
-                        'página, seus modelos e o histórico somem. Antes de sair, clique em <b>Baixar meu histórico</b>. '
-                        'Na próxima vez, abra o arquivo aqui e tudo volta como estava. Só você vê o seu arquivo.</div>',
+                        'página, seus modelos e o histórico somem. Antes de sair, clique em <b>Baixar meu histórico</b> e '
+                        'guarde o seu arquivo de histórico portátil. Na próxima vez, abra esse arquivo aqui e tudo volta '
+                        'como estava. <b>Só você vê o seu arquivo.</b></div>',
                         unsafe_allow_html=True)
             nm, nh = len(st.session_state["modelos"]), len(st.session_state["historico"])
             st.caption(f"Agora você tem {nm} modelo(s) e {nh} planilha(s) no histórico.")
