@@ -87,15 +87,14 @@ p{margin-bottom:0;}
 .stButton button p{font-size:14px;}
 [class*="st-key-modelo_"] button{border-color:rgba(253,121,51,.4); font-size:13px; min-height:32px; padding:4px 10px;}
 [class*="st-key-modelo_"] button p{font-size:13px; font-weight:500;}
-.st-key-limpar_selecao button{border-style:dashed; border-color:rgba(108,114,126,.4); min-height:32px; padding:4px 12px;}
-.st-key-limpar_selecao button[kind="primary"]{border-style:solid;}
+ .st-key-limpar_selecao button{min-height:32px; padding:4px 12px;}
 .st-key-limpar_selecao button p{font-size:13px; font-weight:500;}
 /* Separa os modelos criados dos botões de ação. */
 .seprot{border-top:1px solid var(--border); margin:16px 0 10px; padding-top:12px; font-size:12px; font-weight:700;
   letter-spacing:.05em; text-transform:uppercase; color:var(--mutedfg);}
 [class*="st-key-modelox_"] button{border:none; background:transparent; min-height:32px; padding:4px 2px; margin-left:-8px; color:#6C727E;}
 [class*="st-key-modelox_"] button:hover{color:#D93D3D;}
-.st-key-criar_modelo button{border-style:dashed; border-color:rgba(253,121,51,.5); min-height:32px; padding:4px 12px;}
+.st-key-criar_modelo button{min-height:32px; padding:4px 12px;}
 .st-key-criar_modelo button p{font-size:13px; font-weight:500;}
 .st-key-todas button, .st-key-limpar_colunas button{background:var(--muted); border-color:var(--muted);}
 .st-key-nova_extra button{border-style:dashed; border-color:rgba(253,121,51,.5); color:var(--accfg);}
@@ -667,9 +666,10 @@ if ABA == "Gerar planilha":
             st.markdown('<p class="seprot">Seleção atual</p>', unsafe_allow_html=True)
             with st.container(horizontal=True, gap="small", key="acoes_modelo"):
                 st.button("Limpar seleção", key="limpar_selecao", icon=":material/close:",
-                          type="primary" if not ORDEM else "secondary", help="Deixa a planilha sem nenhuma coluna",
+                           type="primary", help="Deixa a planilha sem nenhuma coluna",
                           on_click=_set_ordem, args=([],))
                 if st.button("Criar modelo", key="criar_modelo", icon=":material/add:", disabled=not ORDEM,
+                             type="primary",
                              help="Salva as colunas selecionadas como modelo"):
                     st.session_state["abrir"] = "modelo"
 
