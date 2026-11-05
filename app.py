@@ -89,6 +89,7 @@ p{margin-bottom:0;}
 [class*="st-key-modelo_"] button p{font-size:13px; font-weight:500;}
  .st-key-limpar_selecao button{min-height:32px; padding:4px 12px;}
 .st-key-limpar_selecao button p{font-size:13px; font-weight:500;}
+.aviso{background:#FFF8E6;border:1px solid #F5DFA8;border-radius:10px;padding:12px 14px;margin:4px 0 12px;font-size:.92rem;line-height:1.5;color:#3A2E12}
 /* Separa os modelos criados dos botões de ação. */
 .seprot{border-top:1px solid var(--border); margin:16px 0 10px; padding-top:12px; font-size:12px; font-weight:700;
   letter-spacing:.05em; text-transform:uppercase; color:var(--mutedfg);}
@@ -295,6 +296,31 @@ def _abrir(qual: str, editar: str | None = None) -> None:
 
 def _excluir_hist(token: int) -> None:
     st.session_state["historico"] = [h for h in st.session_state["historico"] if h["token"] != token]
+
+
+def _abrir_arquivo() -> None:
+    """Lê o arquivo de histórico enviado e devolve modelos, histórico e configuração."""
+    f = st.session_state.get("up_hist")
+    if f is None:
+        return
+    try:
+        dados = historico.importar(f.getvalue())
+    except ValueError as e:
+        st.session_state["hist_msg"] = ("erro", str(e))
+        return
+    novo_cfg = cfg_mod.config_inicial()
+    novo_cfg.update({k: v for k, v in dados["config"].items() if k in novo_cfg})
+    EXTRAS[:] = dados["extras"]
+    novo_cfg["extras"] = EXTRAS
+    CFG.clear()
+    CFG.update(novo_cfg)
+    st.session_state["modelos"] = dados["modelos"]
+    st.session_state["historico"] = dados["historico"]
+    st.session_state["banco_linhas"] = dados["banco"]
+    for k in [k for k in st.session_state if str(k).startswith("w_")]:
+        del st.session_state[k]
+    st.session_state["hist_msg"] = ("ok", f'Pronto! Voltaram {len(dados["modelos"])} modelo(s) e '
+                                          f'{len(dados["historico"])} planilha(s) do histórico.')
 
 
 def _ir_aba() -> None:
@@ -656,7 +682,7 @@ with st.container(key="topo"):
                 '<span>Dados fictícios no formato brasileiro</span><span class="aut">Desenvolvido por William Montijo</span></div></div>', unsafe_allow_html=True)
     with t2:
         with st.container(key="abas"):
-            st.segmented_control("Aba", ["Gerar planilha", "Gerar dado único"],
+            st.segmented_control("Aba", ["Gerar planilha", "Gerar dado único", "Histórico"],
                                  default=st.session_state["aba"], key="abas_nav", on_change=_ir_aba,
                                  label_visibility="collapsed")
 
@@ -763,7 +789,7 @@ if ABA == "Gerar planilha":
                 st.markdown(f'<div class="previa"><table><thead><tr>{cab}</tr></thead><tbody>{corpo}</tbody></table></div>',
                             unsafe_allow_html=True)
 
-        with _card("historico", "Histórico", "As últimas planilhas geradas nesta sessão."):
+        with _card("historico", "Histórico", "As últimas planilhas geradas nesta sessão. Para não perder ao fechar a página, use a aba Histórico lá em cima."):
             itens = st.session_state["historico"]
             if not itens:
                 st.markdown('<div class="vazio">Nada gerado ainda.</div>', unsafe_allow_html=True)
@@ -919,6 +945,28 @@ elif ABA == "Gerar dado único":
         if st.button("Gerar novo", key="u_gerar", type="primary", icon=":material/refresh:", width="stretch"):
             st.session_state["u_novo"] = True
             st.rerun()
+
+elif ABA == "Histórico":
+    _, meio, _ = st.columns([0.6, 2, 0.6])
+    with meio:
+        with _card("arquivo", "Meu histórico", "Guarde tudo o que você fez num arquivo e abra de novo quando voltar."):
+            st.markdown('<div class="aviso"><b>Importante:</b> nada fica salvo no servidor. Se você recarregar ou fechar a '
+                        'página, seus modelos e o histórico somem. Antes de sair, clique em <b>Baixar meu histórico</b>. '
+                        'Na próxima vez, abra o arquivo aqui e tudo volta como estava. Só você vê o seu arquivo.</div>',
+                        unsafe_allow_html=True)
+            nm, nh = len(st.session_state["modelos"]), len(st.session_state["historico"])
+            st.caption(f"Agora você tem {nm} modelo(s) e {nh} planilha(s) no histórico.")
+            st.download_button("Baixar meu histórico", icon=":material/download:", type="primary", width="stretch",
+                               key="baixar_hist", on_click="ignore", mime="application/json",
+                               file_name=f"meu-historico-{datetime.now().strftime('%Y-%m-%d')}.json",
+                               data=(lambda m=list(st.session_state["modelos"]), h=list(st.session_state["historico"]),
+                                     bl=dict(st.session_state["banco_linhas"]), cf=dict(CFG), ex=list(EXTRAS):
+                                     historico.exportar(m, h, bl, cf, ex)),
+                               disabled=not (nm or nh))
+            st.file_uploader("Abrir meu histórico (.json)", type=["json"], key="up_hist", on_change=_abrir_arquivo)
+            msg = st.session_state.pop("hist_msg", None)
+            if msg:
+                (st.success if msg[0] == "ok" else st.error)(msg[1])
 
 st.markdown('<p class="rodape">Dados fictícios, apenas para testes de software. CPF, CNPJ, CNH, PIS e título têm dígitos '
             'verificadores válidos, mas não pertencem a pessoas reais.</p>',

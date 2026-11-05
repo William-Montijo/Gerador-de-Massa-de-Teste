@@ -442,3 +442,25 @@ def test_cpf_da_planilha_e_do_dado_unico_seguem_o_estado():
         assert re.sub(r"\D", "", r["CPF"])[8] == "7"
         v = geradores.gerar_dado_unico("CPF", {"estados": ["SP"]})[0][1]
         assert re.sub(r"\D", "", v)[8] == "8"
+
+
+def test_arquivo_de_historico_volta_igual():
+    from qahub import historico as hm
+    modelos = [{"nome": "Cadastro", "colunas": ["Nome", "CPF"]}]
+    hist = [{"token": 7, "nome": "a.xlsx", "formato": "xlsx", "colunas": ["Nome"], "quantidade": 2,
+             "nome_base": "", "com_titulo": True, "quando": "01/01, 10:00"}]
+    banco = {7: [{"Nome": "Ana"}, {"Nome": "Bia"}]}
+    volta = hm.importar(hm.exportar(modelos, hist, banco, {"quantidade": 50, "colunas": ["Nome"]}, []))
+    assert volta["modelos"] == modelos
+    assert volta["historico"][0]["nome"] == "a.xlsx"
+    assert volta["banco"][volta["historico"][0]["token"]] == banco[7]
+    assert volta["config"]["quantidade"] == 50
+
+
+def test_arquivo_estranho_e_recusado():
+    import pytest
+    from qahub import historico as hm
+    with pytest.raises(ValueError):
+        hm.importar(b'{"outra": 1}')
+    with pytest.raises(ValueError):
+        hm.importar(b"nao e json")
