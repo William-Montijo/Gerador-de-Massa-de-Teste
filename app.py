@@ -94,6 +94,8 @@ p{margin-bottom:0;}
   letter-spacing:.05em; text-transform:uppercase; color:var(--mutedfg);}
 [class*="st-key-modelox_"] button{border:none; background:transparent; min-height:32px; padding:4px 2px; margin-left:-8px; color:#6C727E;}
 [class*="st-key-modelox_"] button:hover{color:#D93D3D;}
+.st-key-dlg_excl_ok button{background:#D93D3D !important; border-color:#D93D3D !important; color:#fff !important;}
+.st-key-dlg_excl_ok button:hover{background:#C43030 !important; border-color:#C43030 !important; color:#fff !important;}
 .st-key-criar_modelo button{min-height:32px; padding:4px 12px;}
 .st-key-criar_modelo button p{font-size:13px; font-weight:500;}
 .st-key-todas button, .st-key-limpar_colunas button{background:var(--muted); border-color:var(--muted);}
@@ -270,6 +272,12 @@ def _excluir_modelo(nome: str) -> None:
     cfg_mod.salvar_modelos(st.session_state["modelos"])
 
 
+def _pedir_exclusao(nome: str) -> None:
+    """Guarda o nome e abre a janela de confirmação antes de apagar o modelo."""
+    st.session_state["excluir_modelo"] = nome
+    st.session_state["abrir"] = "excluir_modelo"
+
+
 def _mover(i: int, d: int) -> None:
     n = list(CFG["colunas"])
     if 0 <= i + d < len(n):
@@ -429,6 +437,19 @@ def dlg_modelo():
     _botoes_janela(salvar)
 
 
+@st.dialog("Excluir modelo")
+def dlg_excluir_modelo():
+    nome = st.session_state.get("excluir_modelo", "")
+    st.caption(f'O modelo "{nome}" sai da lista dos seus modelos. Não dá para desfazer depois.')
+    _, a, b = st.columns([2, 1, 1.3])
+    if a.button("Cancelar", key="dlg_excl_cancelar", width="stretch"):
+        st.rerun()
+    if b.button("Excluir modelo", key="dlg_excl_ok", type="primary", width="stretch"):
+        _excluir_modelo(nome)
+        st.toast(f'Modelo "{nome}" excluído.')
+        st.rerun()
+
+
 @st.dialog("Tipo de chave PIX")
 def dlg_pix():
     st.caption("A chave usa os dados da própria linha: CPF → o CPF da pessoa, Celular → o celular dela.")
@@ -539,7 +560,7 @@ def dlg_extra():
 
 JANELAS = {"nasc": dlg_nasc, "senha": dlg_senha, "estados": dlg_estados, "cidades": dlg_cidades, "cep": dlg_cep,
            "sexo": dlg_sexo, "email": dlg_email, "pix": dlg_pix, "escolar": dlg_escolar, "renda": dlg_renda,
-           "valor": dlg_valor, "extra": dlg_extra, "modelo": dlg_modelo}
+           "valor": dlg_valor, "extra": dlg_extra, "modelo": dlg_modelo, "excluir_modelo": dlg_excluir_modelo}
 ENGRENAGEM = {"Data de nascimento": "nasc", "Idade": "nasc", "Senha": "senha", "Estado (UF)": "estados",
               "CPF": "estados", "Telefone": "estados", "Celular": "estados",
               "Cidade": "cidades", "CEP": "cep", "Nome completo": "sexo", "Sexo": "sexo", "E-mail": "email",
@@ -659,7 +680,7 @@ if ABA == "Gerar planilha":
                         st.button(m["nome"], key=f"modelo_{i}", help=f"{len(m['colunas'])} coluna(s)",
                                   on_click=_aplicar_modelo, args=(m["nome"],))
                         st.button("", key=f"modelox_{i}", icon=":material/close:", help=f"Excluir o modelo {m['nome']}",
-                                  on_click=_excluir_modelo, args=(m["nome"],))
+                                  on_click=_pedir_exclusao, args=(m["nome"],))
             else:
                 st.markdown('<p class="vazio">Nenhum modelo ainda. Marque colunas e clique em <b>Criar modelo</b> aqui embaixo.</p>',
                             unsafe_allow_html=True)
