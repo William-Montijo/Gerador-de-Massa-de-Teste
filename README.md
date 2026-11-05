@@ -14,7 +14,7 @@ no GitHub.
 
 **Aba "Gerar planilha"**
 - 41 colunas prontas + colunas personalizadas que você criar
-- Modelos próprios: selecione as colunas, clique em "Criar modelo", dê um nome e ele fica no topo para usar com um clique
+- Modelos próprios: selecione as colunas, clique em "Criar modelo", dê um nome e ele fica no topo para usar com um clique. Cada pessoa vê só os seus
 - Botão **Limpar seleção** deixa a planilha com zero colunas (o app abre assim)
 - Prévia das 8 primeiras linhas antes de baixar
 - Download em **Excel (.xlsx)**, **CSV** ou **JSON**
@@ -69,7 +69,7 @@ Abre em `http://localhost:8501`.
 app.py                      interface Streamlit (as duas abas)
 qahub/brasil.py             estados, faixas de CEP, DDDs, cidades e dígitos verificadores
 qahub/geradores.py          cada coluna, o dado único e as conferências de dígito
-qahub/config.py             estado inicial, modelos prontos e colunas personalizadas
+qahub/config.py             estado inicial e colunas personalizadas
 qahub/planilha.py           exportação em Excel, CSV e JSON
 qahub/historico.py          as últimas gerações da sessão
 tests/test_regras.py        47 testes das regras
@@ -87,7 +87,7 @@ Os testes cobrem: coerência de CEP/cidade/estado/DDD, dígitos verificadores de
 CPF, CNPJ, CNH, PIS, título e boleto, regra de Luhn nos cartões, os cinco tipos
 de chave PIX, a sujeira na planilha, a conferência de dígitos, os filtros de
 escolaridade, renda, valor e estado/DDD, o formato dd/mm/aaaa, a pontuação de
-RG, telefone e celular, os modelos prontos e o nome dos arquivos.
+RG, telefone e celular, os modelos do usuário e o nome dos arquivos.
 
 ## Tecnologias
 

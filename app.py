@@ -171,12 +171,12 @@ p{margin-bottom:0;}
     )
 
 # ---------------------------------------------------------------------------
-# Estado
+# Modelos: cada pessoa vê só os seus, guardados no próprio navegador
 # ---------------------------------------------------------------------------
 
 st.session_state.setdefault("cfg", cfg_mod.config_inicial())
 st.session_state.setdefault("extras", cfg_mod.carregar_extras())
-st.session_state.setdefault("modelos", cfg_mod.carregar_modelos())
+st.session_state.setdefault("modelos", [])
 st.session_state.setdefault("historico", [])
 st.session_state.setdefault("banco_linhas", {})
 st.session_state.setdefault("aba", "Gerar planilha")
@@ -269,7 +269,6 @@ def _aplicar_modelo(nome: str) -> None:
 
 def _excluir_modelo(nome: str) -> None:
     st.session_state["modelos"] = [m for m in st.session_state["modelos"] if m["nome"] != nome]
-    cfg_mod.salvar_modelos(st.session_state["modelos"])
 
 
 def _pedir_exclusao(nome: str) -> None:
@@ -432,7 +431,6 @@ def dlg_modelo():
             st.error(erro)
             return False
         st.session_state["modelos"] = novos
-        cfg_mod.salvar_modelos(novos)
         st.toast(f'Modelo "{nome.strip()}" salvo.')
     _botoes_janela(salvar)
 
@@ -673,7 +671,7 @@ if ABA == "Gerar planilha":
     resumo = _resumos()
 
     with esq:
-        with _card("modelos", "Meus modelos", "Selecione as colunas, clique em Criar modelo e dê um nome. Ele aparece aqui para usar com um clique."):
+        with _card("modelos", "Meus modelos", "Selecione as colunas, clique em Criar modelo e dê um nome. Ele aparece aqui para usar com um clique. Só você vê os seus modelos."):
             if st.session_state["modelos"]:
                 with st.container(horizontal=True, gap="small"):
                     for i, m in enumerate(st.session_state["modelos"]):
