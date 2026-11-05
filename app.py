@@ -90,6 +90,10 @@ p{margin-bottom:0;}
 .st-key-limpar_modelo button{border-style:dashed; border-color:rgba(108,114,126,.4); min-height:32px; padding:4px 12px;}
 .st-key-limpar_modelo button[kind="primary"]{border-style:solid;}
 .st-key-limpar_modelo button p{font-size:13px; font-weight:500;}
+[class*="st-key-modelox_"] button{border:none; background:transparent; min-height:32px; padding:4px 2px; margin-left:-8px; color:#6C727E;}
+[class*="st-key-modelox_"] button:hover{color:#D93D3D;}
+.st-key-criar_modelo button{border-style:dashed; border-color:rgba(253,121,51,.5); min-height:32px; padding:4px 12px;}
+.st-key-criar_modelo button p{font-size:13px; font-weight:500;}
 .st-key-todas button, .st-key-limpar_colunas button{background:var(--muted); border-color:var(--muted);}
 .st-key-nova_extra button{border-style:dashed; border-color:rgba(253,121,51,.5); color:var(--accfg);}
 .st-key-gerar_xlsx button{min-height:48px;}
@@ -168,6 +172,7 @@ p{margin-bottom:0;}
 
 st.session_state.setdefault("cfg", cfg_mod.config_inicial())
 st.session_state.setdefault("extras", cfg_mod.carregar_extras())
+st.session_state.setdefault("modelos", cfg_mod.carregar_modelos())
 st.session_state.setdefault("historico", [])
 st.session_state.setdefault("banco_linhas", {})
 st.session_state.setdefault("aba", "Gerar planilha")
@@ -250,10 +255,17 @@ def _alternar(c: str) -> None:
 
 
 def _aplicar_modelo(nome: str) -> None:
-    cols = [c for c in (cfg_mod.modelo_por_nome(nome) or []) if c in geradores.COLUNAS_DISPONIVEIS]
+    m = next((x for x in st.session_state["modelos"] if x["nome"] == nome), None)
+    extras = {e["nome"] for e in EXTRAS}
+    cols = [c for c in (m["colunas"] if m else []) if c in geradores.COLUNAS_DISPONIVEIS or c in extras]
     _set_ordem(cols)
     if "Data de nascimento" in cols or "Idade" in cols:
         st.session_state["abrir"] = "nasc"
+
+
+def _excluir_modelo(nome: str) -> None:
+    st.session_state["modelos"] = [m for m in st.session_state["modelos"] if m["nome"] != nome]
+    cfg_mod.salvar_modelos(st.session_state["modelos"])
 
 
 def _mover(i: int, d: int) -> None:
@@ -399,6 +411,22 @@ def dlg_email():
     _botoes_janela(salvar)
 
 
+@st.dialog("Criar modelo")
+def dlg_modelo():
+    st.caption(f"O modelo guarda as {len(CFG['colunas'])} coluna(s) selecionada(s), na ordem atual.")
+    nome = st.text_input("Nome do modelo", max_chars=40, placeholder="Cadastro de cliente", key="dlg_modelo_nome")
+
+    def salvar():
+        novos, erro = cfg_mod.salvar_modelo(st.session_state["modelos"], nome, list(CFG["colunas"]))
+        if erro:
+            st.error(erro)
+            return False
+        st.session_state["modelos"] = novos
+        cfg_mod.salvar_modelos(novos)
+        st.toast(f'Modelo "{nome.strip()}" salvo.')
+    _botoes_janela(salvar)
+
+
 @st.dialog("Tipo de chave PIX")
 def dlg_pix():
     st.caption("A chave usa os dados da própria linha: CPF → o CPF da pessoa, Celular → o celular dela.")
@@ -509,9 +537,9 @@ def dlg_extra():
 
 JANELAS = {"nasc": dlg_nasc, "senha": dlg_senha, "estados": dlg_estados, "cidades": dlg_cidades, "cep": dlg_cep,
            "sexo": dlg_sexo, "email": dlg_email, "pix": dlg_pix, "escolar": dlg_escolar, "renda": dlg_renda,
-           "valor": dlg_valor, "extra": dlg_extra}
+           "valor": dlg_valor, "extra": dlg_extra, "modelo": dlg_modelo}
 ENGRENAGEM = {"Data de nascimento": "nasc", "Idade": "nasc", "Senha": "senha", "Estado (UF)": "estados",
-              "Telefone": "estados", "Celular": "estados",
+              "CPF": "estados", "Telefone": "estados", "Celular": "estados",
               "Cidade": "cidades", "CEP": "cep", "Nome completo": "sexo", "Sexo": "sexo", "E-mail": "email",
               "Escolaridade": "escolar", "Renda mensal": "renda", "Valor": "valor", "PIX": "pix"}
 
@@ -541,6 +569,7 @@ def _resumos() -> dict:
     r = {
         "Data de nascimento": nasc, "Idade": nasc, "Nome completo": sx, "Sexo": sx,
         "Senha": f"{s['tamanho']} caracteres · {tipos}",
+        "CPF": None if not est or len(est) == len(brasil.SIGLAS_BR) else "CPF de " + (", ".join(est) if len(est) <= 4 else f"{len(est)} estados"),
         "Estado (UF)": None if not est or len(est) == len(brasil.SIGLAS_BR) else (", ".join(est) if len(est) <= 4 else f"{len(est)} estados"),
         "Telefone": None if not est or len(est) == len(brasil.SIGLAS_BR) else "DDD de " + (", ".join(est) if len(est) <= 4 else f"{len(est)} estados"),
         "Celular": None if not est or len(est) == len(brasil.SIGLAS_BR) else "DDD de " + (", ".join(est) if len(est) <= 4 else f"{len(est)} estados"),
@@ -621,13 +650,19 @@ if ABA == "Gerar planilha":
     resumo = _resumos()
 
     with esq:
-        with _card("modelos", "Modelos prontos", "Um clique para montar a seleção de colunas. Depois é só ajustar."):
+        with _card("modelos", "Meus modelos", "Selecione as colunas, clique em Criar modelo e dê um nome. Ele aparece aqui para usar com um clique."):
             with st.container(horizontal=True, gap="small"):
-                for i, m in enumerate(cfg_mod.MODELOS):
-                    st.button(m["nome"], key=f"modelo_{i}", help=m["resumo"], on_click=_aplicar_modelo, args=(m["nome"],))
+                for i, m in enumerate(st.session_state["modelos"]):
+                    st.button(m["nome"], key=f"modelo_{i}", help=f"{len(m['colunas'])} coluna(s)",
+                              on_click=_aplicar_modelo, args=(m["nome"],))
+                    st.button("", key=f"modelox_{i}", icon=":material/close:", help=f"Excluir o modelo {m['nome']}",
+                              on_click=_excluir_modelo, args=(m["nome"],))
                 st.button("Limpar modelo", key="limpar_modelo", icon=":material/close:",
                           type="primary" if not ORDEM else "secondary", help="Deixa a planilha sem nenhuma coluna",
                           on_click=_set_ordem, args=([],))
+                if st.button("Criar modelo", key="criar_modelo", icon=":material/add:", disabled=not ORDEM,
+                             help="Salva as colunas selecionadas como modelo"):
+                    st.session_state["abrir"] = "modelo"
 
         with _card("colunas", "Colunas", f"{len(ORDEM)} selecionada(s). Elas entram na planilha na ordem em que você seleciona."):
             b1, b2, b3 = st.columns([6, 0.9, 0.9], vertical_alignment="center")

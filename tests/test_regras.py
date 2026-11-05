@@ -297,11 +297,22 @@ def test_gera_cada_tipo_avulso_com_os_campos_esperados():
     assert re.match(r"^\d{2}/\d{2}/\d{4}$", geradores.gerar_dado_unico("Data de cadastro", o)[0][1])
 
 
-def test_todo_modelo_usa_colunas_que_existem():
-    for m in cfg_mod.MODELOS:
-        assert m["colunas"]
-        for c in m["colunas"]:
-            assert c in geradores.COLUNAS_DISPONIVEIS
+def test_modelo_do_usuario_guarda_nome_e_colunas_e_mesmo_nome_substitui():
+    a, erro = cfg_mod.salvar_modelo([], "Meu cadastro", ["CPF", "E-mail"])
+    assert erro is None and a == [{"nome": "Meu cadastro", "colunas": ["CPF", "E-mail"]}]
+    b, _ = cfg_mod.salvar_modelo(a, "meu cadastro", ["CPF"])
+    assert b == [{"nome": "meu cadastro", "colunas": ["CPF"]}]
+
+
+def test_modelo_sem_nome_ou_sem_colunas_e_recusado():
+    assert cfg_mod.salvar_modelo([], "  ", ["CPF"])[1]
+    assert cfg_mod.salvar_modelo([], "X", [])[1]
+
+
+def test_modelos_sao_gravados_e_lidos_do_arquivo(tmp_path):
+    arq = str(tmp_path / "m.json")
+    cfg_mod.salvar_modelos([{"nome": "A", "colunas": ["CPF"]}], arq)
+    assert cfg_mod.carregar_modelos(arq) == [{"nome": "A", "colunas": ["CPF"]}]
 
 
 def test_nome_do_arquivo_traz_a_base_a_data_e_a_extensao():

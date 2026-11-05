@@ -1,7 +1,7 @@
 """
-QAhub - configuração, modelos prontos e colunas personalizadas
+QAhub - configuração, modelos do usuário e colunas personalizadas
 ---------------------------------------------------------------
-Estado inicial do app, modelos prontos de seleção de colunas e a
+Estado inicial do app, modelos de seleção criados pelo usuário de colunas e a
 persistência das colunas personalizadas em arquivo.
 
 Este módulo não depende de Streamlit.
@@ -117,58 +117,46 @@ def colunas_da_config(cfg: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Modelos prontos
+# Modelos do usuário
 # ---------------------------------------------------------------------------
 
-MODELOS = [
-    {
-        "nome": "Cadastro PF",
-        "resumo": "Pessoa física com tudo do endereço",
-        "colunas": [
-            "Nome completo", "CPF", "Data de nascimento", "Idade", "Sexo", "E-mail",
-            "Telefone", "Celular", "Endereço", "Complemento", "Bairro", "Cidade",
-            "Estado (UF)", "CEP", "Senha",
-        ],
-    },
-    {
-        "nome": "Cadastro PJ",
-        "resumo": "Empresa com CNPJ e contato",
-        "colunas": [
-            "Nome da empresa", "CNPJ", "E-mail", "Telefone", "Celular", "Endereço",
-            "Bairro", "Cidade", "Estado (UF)", "CEP", "Senha", "PIX",
-        ],
-    },
-    {
-        "nome": "Pedido com cartão",
-        "resumo": "Cliente + cartão válido + valor",
-        "colunas": [
-            "Nome completo", "CPF", "E-mail", "Telefone", "Cidade", "Estado (UF)", "CEP",
-            "Cartão de crédito", "Bandeira do cartão", "Validade do cartão",
-            "CVV do cartão", "Valor",
-        ],
-    },
-    {
-        "nome": "Mailing",
-        "resumo": "Só contato, leve e rápido",
-        "colunas": ["Nome completo", "E-mail", "Telefone", "Celular", "Cidade", "Estado (UF)"],
-    },
-    {
-        "nome": "Cobrança / boleto",
-        "resumo": "Devedor com código de barras e valor",
-        "colunas": [
-            "Nome completo", "CPF", "E-mail", "Telefone", "Endereço", "Cidade",
-            "Estado (UF)", "CEP", "Código de barras", "Valor", "Data de cadastro",
-        ],
-    },
-]
+def salvar_modelo(modelos: list[dict], nome: str, colunas: list[str]) -> tuple[list[dict] | None, str | None]:
+    """Cria (ou substitui, se o nome já existir) um modelo do usuário."""
+    n = (nome or "").strip()
+    if not n:
+        return None, "Dê um nome ao modelo."
+    if len(n) > 40:
+        return None, "Use no máximo 40 caracteres."
+    if not colunas:
+        return None, "Selecione pelo menos uma coluna antes de criar o modelo."
+    resto = [m for m in modelos if m["nome"].lower() != n.lower()]
+    return resto + [{"nome": n, "colunas": list(colunas)}], None
 
 
-def modelo_por_nome(nome: str) -> list[str] | None:
-    """As colunas de um modelo pronto, ou None se o nome não existir."""
-    for m in MODELOS:
-        if m["nome"] == nome:
-            return list(m["colunas"])
-    return None
+ARQUIVO_MODELOS = "modelos_personalizados.json"
+
+
+def carregar_modelos(caminho: str = ARQUIVO_MODELOS) -> list[dict]:
+    """Lê os modelos salvos pelo usuário. Se der errado, começa vazio."""
+    try:
+        with open(caminho, encoding="utf-8") as f:
+            dados = json.load(f)
+    except (OSError, ValueError):
+        return []
+    if not isinstance(dados, list):
+        return []
+    return [{"nome": str(m["nome"]), "colunas": [str(c) for c in m["colunas"]]}
+            for m in dados if isinstance(m, dict) and m.get("nome") and isinstance(m.get("colunas"), list)]
+
+
+def salvar_modelos(modelos: list[dict], caminho: str = ARQUIVO_MODELOS) -> bool:
+    """Grava os modelos do usuário. Falha silenciosa se o disco não deixar."""
+    try:
+        with open(caminho, "w", encoding="utf-8") as f:
+            json.dump(modelos, f, ensure_ascii=False, indent=2)
+        return True
+    except OSError:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +198,7 @@ def salvar_extras(extras: list[dict], caminho: str = ARQUIVO_EXTRAS) -> bool:
 
 __all__ = [
     "SUJEIRA_PADRAO", "SUJEIRA_CAMPOS", "config_inicial", "montar_opcoes",
-    "colunas_da_config", "MODELOS", "modelo_por_nome", "ARQUIVO_EXTRAS",
+    "colunas_da_config", "salvar_modelo", "carregar_modelos", "salvar_modelos",
+    "ARQUIVO_MODELOS", "ARQUIVO_EXTRAS",
     "carregar_extras", "salvar_extras", "COLUNAS_DISPONIVEIS", "TIPOS_PIX",
 ]

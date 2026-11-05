@@ -14,7 +14,7 @@ no GitHub.
 
 **Aba "Gerar planilha"**
 - 41 colunas prontas + colunas personalizadas que você criar
-- 5 modelos prontos: Cadastro PF, Cadastro PJ, Pedido com cartão, Mailing e Cobrança / boleto
+- Modelos próprios: selecione as colunas, clique em "Criar modelo", dê um nome e ele fica no topo para usar com um clique
 - Botão **Limpar modelo** deixa a planilha com zero colunas (o app abre assim)
 - Prévia das 8 primeiras linhas antes de baixar
 - Download em **Excel (.xlsx)**, **CSV** ou **JSON**
@@ -72,7 +72,7 @@ qahub/geradores.py          cada coluna, o dado único e as conferências de dí
 qahub/config.py             estado inicial, modelos prontos e colunas personalizadas
 qahub/planilha.py           exportação em Excel, CSV e JSON
 qahub/historico.py          as últimas gerações da sessão
-tests/test_regras.py        43 testes das regras
+tests/test_regras.py        47 testes das regras
 assets/logo-qahub.png       logo
 ```
 
