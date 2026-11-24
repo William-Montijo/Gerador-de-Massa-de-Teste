@@ -8,6 +8,8 @@ Módulos usados pela interface Streamlit:
   config      - estado inicial, modelos prontos e colunas personalizadas
   planilha    - exportação em Excel, CSV e JSON
   historico   - as últimas gerações da sessão
+  arquivos    - arquivos de teste com extensão e tamanho exatos
+  emailtemp   - e-mail temporário (API do Mail.tm)
 """
 
-__all__ = ["brasil", "geradores", "config", "planilha", "historico"]
+__all__ = ["brasil", "geradores", "config", "planilha", "historico", "arquivos", "emailtemp"]

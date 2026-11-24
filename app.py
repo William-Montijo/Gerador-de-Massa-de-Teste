@@ -14,12 +14,13 @@ from __future__ import annotations
 
 import base64
 import html
+import time
 from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
 
-from qahub import brasil, config as cfg_mod, geradores, historico, planilha
+from qahub import arquivos, brasil, config as cfg_mod, emailtemp, geradores, historico, planilha
 
 st.set_page_config(
     page_title="Gerador de Massa de Teste · QAhub",
@@ -143,6 +144,20 @@ p{margin-bottom:0;}
 .hnome{font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .hinfo{font-size:12px; color:var(--mutedfg);}
 
+/* Caixa de entrada do e-mail temporário */
+/* O Streamlit tira 16px da base de todo bloco de texto (margin-bottom:-1rem). Nos textos com HTML próprio isso
+   fazia a última linha vazar por cima do bloco seguinte. Aqui a margem volta a zero e os blocos ganham respiro. */
+.st-key-card_email_temp [data-testid="stMarkdownContainer"]:has(> [class]){margin-bottom:0 !important;}
+.st-key-card_email_temp [data-testid="stVerticalBlock"]{row-gap:14px;}
+.st-key-card_email_temp hr{margin:10px 0 !important;}
+[class*="st-key-em_msg_"]{border:1px solid var(--border); border-radius:10px; padding:12px 16px;}
+[class*="st-key-em_msg_"] [data-testid="stVerticalBlock"]{row-gap:0;}
+[class*="st-key-em_msg_"] [data-testid="stHorizontalBlock"]{align-items:center;}
+.hinfo.cort{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.55;}
+.st-key-card_email_temp [data-testid="stCaptionContainer"]{margin-top:4px;}
+.st-key-card_email_temp .subtit{margin-bottom:0 !important;}
+.st-key-card_email_temp [data-testid="stMarkdownContainer"]:has(> .subtit){margin-bottom:-6px !important;}
+
 /* Sujeira */
 [class*="st-key-suj_"] [data-testid="stHorizontalBlock"]{align-items:center;}
 .sdica{font-size:12px !important; color:var(--mutedfg); margin:-14px 0 6px 28px !important; line-height:1.2 !important;}
@@ -160,6 +175,18 @@ p{margin-bottom:0;}
 .val .v{font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:500; word-break:break-all;}
 .val .m{font-size:12px; color:var(--mutedfg);}
 .rodape{margin-top:32px; text-align:center; font-size:12px; color:var(--mutedfg);}
+
+/* Extensão do arquivo de teste: caixa bem visível, para mostrar que dá para trocar */
+.st-key-f_ext [data-testid="stSelectbox"] div:has(> input), .st-key-f_ext_outra [data-testid="stTextInputRootElement"]{
+  border:2px solid #B9BEC9 !important; border-radius:10px !important; background:#fff !important;
+  box-shadow:0 1px 3px rgba(0,0,0,.10); min-height:44px; cursor:pointer;}
+.st-key-f_ext_outra [data-testid="stTextInputRootElement"]{cursor:text;}
+.st-key-f_nome [data-testid="stTextInputRootElement"]{min-height:44px;}
+.st-key-f_ext [data-testid="stSelectbox"] div:has(> input):hover, .st-key-f_ext_outra [data-testid="stTextInputRootElement"]:hover{border-color:var(--primary) !important;}
+.st-key-f_ext [data-testid="stSelectbox"] div:has(> input):focus-within, .st-key-f_ext_outra [data-testid="stTextInputRootElement"]:focus-within{
+  border-color:var(--primary) !important; box-shadow:0 0 0 3px rgba(253,121,51,.25);}
+.st-key-f_ext [data-testid="stSelectbox"] input{font-weight:600; cursor:pointer;}
+.st-key-f_ext [data-testid="stSelectbox"] div:has(> input) button svg{color:var(--primary); fill:var(--primary); width:22px; height:22px;}
 
 /* Campos */
 [data-testid="stTextInputRootElement"], [data-testid="stNumberInputContainer"], .stTextArea [data-baseweb="base-input"], .stSelectbox [data-baseweb="select"] > div{border:1px solid var(--border) !important; border-radius:8px !important; background:var(--card) !important;}
@@ -323,6 +350,168 @@ def _abrir_arquivo() -> None:
         del st.session_state[k]
     st.session_state["hist_msg"] = ("ok", f'Pronto! Voltaram {len(dados["modelos"])} modelo(s) e '
                                           f'{len(dados["historico"])} planilha(s) do histórico.')
+
+
+def _atalho_tamanho(valor: int, unidade: str) -> None:
+    """Preenche o tamanho do arquivo de teste com um atalho (1 MB, 5 MB...)."""
+    st.session_state["f_tam"] = valor
+    st.session_state["f_un"] = unidade
+
+
+# ---------------------------------------------------------------------------
+# E-mail temporário (API do Mail.tm)
+# ---------------------------------------------------------------------------
+
+st.session_state.setdefault("emails", [])
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _dominios_email() -> list[str]:
+    return emailtemp.ClienteMailTm().dominios()
+
+
+def _dominios_ou_erro() -> tuple[list[str], tuple[str, str] | None]:
+    """Domínios do serviço. Se falhar, guarda o erro por 20 s para não insistir a cada clique."""
+    if time.time() < st.session_state.get("dom_ate", 0):
+        return [], st.session_state.get("dom_erro")
+    try:
+        return _dominios_email(), None
+    except emailtemp.ErroEmail as e:
+        st.session_state["dom_ate"] = time.time() + 20
+        st.session_state["dom_erro"] = (str(e), e.detalhe)
+        return [], st.session_state["dom_erro"]
+
+
+def _conta_email(endereco: str | None) -> dict | None:
+    return next((c for c in st.session_state["emails"] if c["address"] == endereco), None)
+
+
+def _criar_email() -> None:
+    """Roda no clique de Criar novo e-mail: cria o endereço e já deixa ele selecionado."""
+    try:
+        conta = emailtemp.ClienteMailTm().criar_conta(st.session_state.get("em_nome") or None,
+                                                      st.session_state.get("em_dom") or None)
+    except (emailtemp.ErroEmail, ValueError) as e:
+        st.session_state["email_msg"] = ("erro", str(e), getattr(e, "detalhe", ""))
+        return
+    st.session_state.pop("dom_ate", None)
+    conta["nota"] = (st.session_state.get("em_nota") or "").strip()
+    st.session_state["emails"].insert(0, conta)
+    st.session_state["email_sel"] = conta["address"]
+    st.session_state["msg_sel"] = None
+    st.session_state["em_nome"] = ""
+    st.session_state["em_nota"] = ""
+    st.session_state["email_msg"] = ("ok", f"Pronto! {conta['address']} já pode receber mensagens.")
+
+
+def _apagar_email(endereco: str) -> None:
+    conta = _conta_email(endereco)
+    if conta:
+        try:
+            emailtemp.ClienteMailTm().excluir_conta(conta)
+        except emailtemp.ErroEmail:
+            pass  # se o serviço não apagar, o endereço sai da sua lista do mesmo jeito
+    st.session_state["emails"] = [c for c in st.session_state["emails"] if c["address"] != endereco]
+    st.session_state["msg_sel"] = None
+    st.toast(f"{endereco} apagado.")
+
+
+def _trocar_email() -> None:
+    st.session_state["msg_sel"] = None
+
+
+def _abrir_msg(id_mensagem: str) -> None:
+    st.session_state["msg_sel"] = id_mensagem
+
+
+def _apagar_msg(endereco: str, id_mensagem: str) -> None:
+    conta = _conta_email(endereco)
+    if conta:
+        try:
+            emailtemp.ClienteMailTm().excluir_mensagem(conta, id_mensagem)
+        except emailtemp.ErroEmail as e:
+            st.session_state["em_aviso_erro"] = str(e)
+            return
+    st.session_state["msg_sel"] = None
+    st.session_state["em_aviso"] = "Mensagem apagada."
+
+
+def _caixa_entrada(endereco: str) -> None:
+    """Lista as mensagens do endereço e mostra a aberta. Roda sozinha de tempos em tempos, se ligado."""
+    conta = _conta_email(endereco)
+    if not conta:
+        return
+    cli = emailtemp.ClienteMailTm()
+    try:
+        msgs = cli.listar(conta)
+    except emailtemp.ErroEmail as e:
+        st.error(str(e))
+        st.button("Tentar de novo", key="em_retry")
+        return
+    if st.session_state.get("em_aviso"):
+        st.success(st.session_state.pop("em_aviso"))
+    if st.session_state.get("em_aviso_erro"):
+        st.error(st.session_state.pop("em_aviso_erro"))
+    topo, botao = st.columns([4, 1.3], vertical_alignment="center")
+    topo.markdown(f'<p class="subtit" style="margin:0 !important">Caixa de entrada · {len(msgs)} mensagem(ns)</p>',
+                  unsafe_allow_html=True)
+    botao.button("Atualizar", key="em_atualizar", icon=":material/refresh:", width="stretch")
+    st.caption(f"Atualizado às {datetime.now().strftime('%H:%M:%S')}")
+    if not msgs:
+        st.markdown('<div class="vazio">Nenhuma mensagem ainda. Use o endereço no site que você está testando '
+                    'e clique em <b>Atualizar</b>.</div>', unsafe_allow_html=True)
+    for i, m in enumerate(msgs):
+        with st.container(key=f"em_msg_{i}"):
+            a, b = st.columns([5, 1.2], vertical_alignment="center")
+            ponto = "" if m["visto"] else "🟠 "
+            clipe = " 📎" if m["anexos"] else ""
+            a.markdown(f'<div class="hnome">{ponto}{html.escape(m["assunto"])}{clipe}</div>'
+                       f'<div class="hinfo cort">{html.escape(m["de"])} · {m["quando"]}</div>'
+                       f'<div class="hinfo cort">{html.escape(m["resumo"])}</div>', unsafe_allow_html=True)
+            b.button("Abrir", key=f"em_abrir_{i}", width="stretch", on_click=_abrir_msg, args=(m["id"],))
+
+    sel = st.session_state.get("msg_sel")
+    atual = next((m for m in msgs if m["id"] == sel), None)
+    if not atual:
+        return
+    try:
+        det = cli.mensagem(conta, sel)
+    except emailtemp.ErroEmail as e:
+        st.error(str(e))
+        return
+    if not atual["visto"]:
+        try:
+            cli.marcar_lida(conta, sel)
+        except emailtemp.ErroEmail:
+            pass  # marcar como lida é só um detalhe
+    st.divider()
+    st.markdown(f'<p class="ctit">{html.escape(det["assunto"])}</p>'
+                f'<div class="hinfo">De: {html.escape(det["de"])} · Para: {html.escape(det["para"])} · {det["quando"]}</div>',
+                unsafe_allow_html=True)
+    if det["codigos"]:
+        st.markdown('<p class="subtit" style="margin-top:12px !important">Possíveis códigos</p>', unsafe_allow_html=True)
+        for c in det["codigos"][:5]:
+            st.code(c, language=None)
+    if det["links"]:
+        st.markdown('<p class="subtit" style="margin-top:12px !important">Links na mensagem</p>', unsafe_allow_html=True)
+        for j, link in enumerate(det["links"][:8]):
+            x, y = st.columns([5, 1], vertical_alignment="center")
+            x.code(link, language=None, wrap_lines=True)
+            y.link_button("Abrir", link, width="stretch")
+        if len(det["links"]) > 8:
+            st.caption(f"Mais {len(det['links']) - 8} link(s) no texto da mensagem.")
+    st.markdown('<p class="subtit" style="margin-top:12px !important">Mensagem</p>', unsafe_allow_html=True)
+    st.code(det["texto"] or "(sem texto)", language=None, wrap_lines=True)
+    if det["anexos"]:
+        nomes = ", ".join(f"{a['nome']} ({_milhar(a['tamanho'] / 1024)} KB)" for a in det["anexos"])
+        st.caption(f"Anexos: {nomes}. Os anexos não são baixados por aqui.")
+    d1, d2, _ = st.columns([1.4, 1.4, 3])
+    if det["html"]:
+        d1.download_button("Baixar HTML", icon=":material/download:", data=det["html"].encode("utf-8"),
+                           file_name="email.html", mime="text/html", on_click="ignore", key="em_dl_html",
+                           width="stretch")
+    d2.button("Apagar", icon=":material/delete:", key="em_apagar_msg", width="stretch",
+              on_click=_apagar_msg, args=(endereco, sel))
 
 
 def _ir_aba() -> None:
@@ -640,7 +829,7 @@ def _resumos() -> dict:
 def _botao_copiar(texto: str, chave: str) -> None:
     """Botão "Copiar" que grava o valor na área de transferência do navegador."""
     payload = base64.b64encode(str(texto).encode("utf-8")).decode("ascii")
-    st.components.v1.html(
+    st.iframe(
         """
         <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600&display=swap" rel="stylesheet">
         <button id="b" style="font-family:Manrope,sans-serif;border:1px solid #E3E4E8;background:#fff;color:#181818;
@@ -688,12 +877,12 @@ except Exception:
     _logo = "<b>QAhub</b>"
 
 with st.container(key="topo"):
-    t1, t2 = st.columns([1, 1])
+    t1, t2 = st.columns([1, 1.7])
     t1.markdown(f'<div class="marca">{_logo}<div class="nome"><b>Gerador de Massa de Teste</b>'
                 '<span>Dados fictícios no formato brasileiro</span><span class="aut">Desenvolvido por William Montijo</span></div></div>', unsafe_allow_html=True)
     with t2:
         with st.container(key="abas"):
-            st.segmented_control("Aba", ["Gerar planilha", "Gerar dado único", "Histórico"],
+            st.segmented_control("Aba", ["Gerar planilha", "Gerar dado único", "Gerar arquivo", "E-mail temporário", "Histórico"],
                                  default=st.session_state["aba"], key="abas_nav", on_change=_ir_aba,
                                  label_visibility="collapsed")
 
@@ -959,6 +1148,110 @@ elif ABA == "Gerar dado único":
             st.rerun()
     with lad:
         st.markdown(AVISO_LATERAL, unsafe_allow_html=True)
+
+elif ABA == "Gerar arquivo":
+    _, meio, _ = st.columns([0.6, 2, 0.6])
+    with meio, _card("gerar_arq", "Gerar arquivo de teste",
+                     f"Escolha a extensão e o tamanho e baixe um arquivo com exatamente esse tamanho (até {arquivos.LIMITE_MB} MB). "
+                     "Serve para testar upload, limite de tamanho e extensões bloqueadas."):
+        st.session_state.setdefault("f_tam", 1)
+        st.session_state.setdefault("f_un", "MB")
+        a, b = st.columns(2, vertical_alignment="bottom")
+        escolha = a.selectbox("Extensão", arquivos.EXTENSOES_COMUNS + ["Outra…"], key="f_ext",
+                              format_func=lambda e: e if e == "Outra…" else f".{e}")
+        if escolha == "Outra…":
+            ext_txt = b.text_input("Digite a extensão", key="f_ext_outra", placeholder="pdf, tar.gz, PDF…")
+        else:
+            ext_txt = escolha
+            b.text_input("Nome do arquivo (opcional)", key="f_nome", placeholder="relatorio_cliente")
+        if escolha == "Outra…":
+            st.text_input("Nome do arquivo (opcional)", key="f_nome", placeholder="relatorio_cliente")
+
+        c, d = st.columns(2, vertical_alignment="bottom")
+        valor = c.number_input("Tamanho", min_value=0, step=1, key="f_tam")
+        unidade = d.selectbox("Unidade", list(arquivos.UNIDADES), key="f_un")
+        st.caption("1 KB = 1.024 bytes e 1 MB = 1.024 KB. Atalhos:")
+        with st.container(horizontal=True, gap="small"):
+            for rot, v, un in [("1 KB", 1, "KB"), ("100 KB", 100, "KB"), ("1 MB", 1, "MB"), ("5 MB", 5, "MB"),
+                               ("10 MB", 10, "MB"), ("50 MB", 50, "MB")]:
+                st.button(rot, key=f"f_at_{v}{un}", on_click=_atalho_tamanho, args=(v, un))
+
+        preench = st.selectbox("Conteúdo", list(arquivos.PREENCHIMENTOS), format_func=arquivos.PREENCHIMENTOS.get, key="f_preench")
+        assin_ok = bool(ext_txt) and arquivos.tem_assinatura(ext_txt)
+        com_assin = st.checkbox("Começar com o cabeçalho real do formato", key="f_cab", disabled=not assin_ok,
+                                help="Os primeiros bytes de um PDF, PNG, ZIP etc., para passar em validações que olham o tipo real. "
+                                     "O arquivo não abre no programa do formato.")
+        if not assin_ok:
+            st.caption("Esse formato não tem cabeçalho nesta lista (vale para txt, csv, json, xml, html e exe).")
+
+        erro = None
+        try:
+            total = arquivos.tamanho_em_bytes(valor, unidade)
+            arquivos.normalizar_extensao(ext_txt)
+            nome_final = arquivos.nome_arquivo(st.session_state.get("f_nome", ""), ext_txt, valor, unidade)
+        except ValueError as e:
+            erro, total, nome_final = str(e), 0, "arquivo"
+        if erro:
+            st.error(erro)
+        else:
+            st.markdown(f'<div class="vazio" style="margin-bottom:12px"><b class="mono">{html.escape(nome_final)}</b><br>{arquivos.formatar_tamanho(total)}</div>',
+                        unsafe_allow_html=True)
+            if com_assin and assin_ok and total < len(arquivos.ASSINATURAS[ext_txt.strip().lstrip(".").lower()]):
+                st.caption("O tamanho é menor que o cabeçalho: ele será cortado para caber.")
+        st.download_button("Baixar arquivo", icon=":material/download:", type="primary", width="stretch",
+                           key="baixar_arquivo", on_click="ignore", disabled=bool(erro), file_name=nome_final,
+                           mime="application/octet-stream",
+                           data=lambda: arquivos.gerar_conteudo(ext_txt, total, preench, bool(com_assin and assin_ok)))
+
+elif ABA == "E-mail temporário":
+    _, meio, _ = st.columns([0.3, 2.6, 0.3])
+    with meio, _card("email_temp", "E-mail temporário",
+                     "Crie um endereço descartável, use nos seus testes e veja aqui as mensagens que chegarem, "
+                     "sem encher a sua caixa pessoal."):
+        doms, erro_dom = _dominios_ou_erro()
+        if erro_dom:
+            st.warning(erro_dom[0])
+            if erro_dom[1]:
+                with st.expander("Detalhes técnicos"):
+                    st.code(erro_dom[1], language=None, wrap_lines=True)
+        a, b, c = st.columns(3, vertical_alignment="bottom")
+        a.text_input("Nome do endereço (opcional)", key="em_nome", placeholder="vazio = sorteia")
+        b.selectbox("Domínio", doms, key="em_dom", disabled=not doms)
+        c.text_input("Anotação (opcional)", key="em_nota", placeholder="teste de cadastro da loja")
+        st.button("Criar novo e-mail", key="em_criar", type="primary", icon=":material/add:", width="stretch",
+                  on_click=_criar_email)
+        msg = st.session_state.pop("email_msg", None)
+        if msg:
+            (st.success if msg[0] == "ok" else st.error)(msg[1])
+            if len(msg) > 2 and msg[2]:
+                with st.expander("Detalhes técnicos"):
+                    st.code(msg[2], language=None, wrap_lines=True)
+
+        lista = st.session_state["emails"]
+        if not lista:
+            st.markdown('<div class="vazio">Nenhum e-mail criado ainda. Clique em <b>Criar novo e-mail</b>.</div>',
+                        unsafe_allow_html=True)
+        else:
+            st.divider()
+            enderecos = [c["address"] for c in lista]
+            if st.session_state.get("email_sel") not in enderecos:
+                st.session_state["email_sel"] = enderecos[0]
+            notas = {c["address"]: c.get("nota", "") for c in lista}
+            sel = st.selectbox("Meus e-mails", enderecos, key="email_sel", on_change=_trocar_email,
+                               format_func=lambda e: f"{notas[e]} · {e}" if notas.get(e) else e)
+            with st.container(key="res_email"):
+                x, y, z = st.columns([5, 1.1, 1.1], vertical_alignment="center")
+                x.markdown(f'<div class="rrot">Endereço</div><div class="rval">{html.escape(sel)}</div>',
+                           unsafe_allow_html=True)
+                with y:
+                    _botao_copiar(sel, "cp_email")
+                z.button("Apagar", key="em_apagar", icon=":material/delete:", width="stretch",
+                         help="Apaga esse endereço e tudo o que chegou nele", on_click=_apagar_email, args=(sel,))
+            st.toggle("Atualizar sozinho a cada 10 segundos", key="em_auto")
+            st.fragment(run_every="10s" if st.session_state.get("em_auto") else None)(_caixa_entrada)(sel)
+        st.caption("Serviço de e-mails: [Mail.tm](https://mail.tm). Use só em sites que você tem permissão de testar. "
+                   "O serviço é de terceiros e descartável, então não use para contas importantes. "
+                   "Alguns sites bloqueiam endereços temporários. Se você recarregar a página, os endereços saem da lista.")
 
 elif ABA == "Histórico":
     _, meio, _ = st.columns([0.6, 2, 0.6])

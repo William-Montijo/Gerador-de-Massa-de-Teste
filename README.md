@@ -26,6 +26,19 @@ no GitHub.
   conta bancária e data de cadastro
 - Cada valor sai pronto para copiar
 
+**Aba "Gerar arquivo"**
+- Escolha a extensão (pdf, png, zip, exe… ou qualquer outra) e o tamanho em bytes, KB ou MB, e baixe um arquivo com **exatamente** esse tamanho, até 100 MB
+- Atalhos de 1 KB, 100 KB, 1 MB, 5 MB, 10 MB e 50 MB
+- Conteúdo vazio (bytes zero), aleatório (não compacta) ou texto legível
+- Opção de começar com o cabeçalho real do formato (PDF, PNG, JPG, ZIP, DOCX…) para passar em validações que olham o tipo real. O arquivo não abre no programa do formato
+
+**Aba "E-mail temporário"**
+- Cria um endereço descartável (nome sorteado ou escolhido por você, domínio à escolha) e mostra as mensagens que chegarem nele, sem encher a sua caixa pessoal
+- Vários endereços ao mesmo tempo, cada um com uma anotação (ex.: "cadastro da loja") para você não se perder durante o dia
+- Ao abrir uma mensagem, destaca os **possíveis códigos de verificação** e os **links** (confirmar e-mail, redefinir senha), cada um com botão de copiar
+- Atualização manual ou automática a cada 10 segundos, apagar mensagem, apagar endereço e baixar o HTML do e-mail
+- Usa a API gratuita do [Mail.tm](https://mail.tm) (limite de 8 consultas por segundo por IP). Se aparecer o erro 429 (muitas consultas), rode `python -m qahub.diagnostico_email` para ver o que o serviço respondeu. Os endereços ficam só na sessão: se recarregar a página, saem da lista. Use só em sites que você tem permissão de testar; alguns sites bloqueiam endereços temporários
+
 ## Dados coerentes
 
 - **CEP, cidade, estado e DDD sempre da mesma região** — se a pessoa é de
@@ -66,13 +79,19 @@ Abre em `http://localhost:8501`.
 ## Estrutura
 
 ```text
-app.py                      interface Streamlit (as duas abas)
+app.py                      interface Streamlit (as abas)
 qahub/brasil.py             estados, faixas de CEP, DDDs, cidades e dígitos verificadores
 qahub/geradores.py          cada coluna, o dado único e as conferências de dígito
 qahub/config.py             estado inicial e colunas personalizadas
 qahub/planilha.py           exportação em Excel, CSV e JSON
+qahub/arquivos.py           arquivos de teste com extensão e tamanho exatos
+qahub/emailtemp.py          e-mail temporário (API do Mail.tm)
+qahub/diagnostico_email.py  script que mostra o que o Mail.tm responde (erro 429 etc.)
 qahub/historico.py          as últimas gerações da sessão
-tests/test_regras.py        47 testes das regras
+tests/test_regras.py        49 testes das regras
+tests/test_arquivos.py      testes do gerador de arquivos
+tests/test_emailtemp.py     testes do e-mail temporário (sem internet, com respostas simuladas)
+tests/test_diagnostico_email.py  testes do script de diagnóstico
 assets/logo-qahub.png       logo
 ```
 
@@ -91,4 +110,4 @@ RG, telefone e celular, os modelos do usuário e o nome dos arquivos.
 
 ## Tecnologias
 
-Python 3 · Streamlit · Faker (pt_BR) · openpyxl · pytest
+Python 3 · Streamlit · Faker (pt_BR) · openpyxl · requests · pytest
